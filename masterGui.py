@@ -1,15 +1,15 @@
-from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QApplication, QMainWindow
-
 import sys
 import time
+import random
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout
 
-def generate_unique_code(name, nic, age, slave_no):
-    # Create a unique alphanumeric code based on input and timestamp
+def generate_unique_code(name, nic, age, slave_no, code_length=10):
+    # Create a unique alphanumeric code with a fixed length
     timestamp = int(time.time())
-    code = f"{name[:2]}{nic[-2:]}{str(age)[:2]}{str(slave_no)[:2]}{timestamp}"
-    return code
+    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    random_chars = ''.join(random.choice(chars) for _ in range(code_length - 15))
+    code = f"{name[:2]}{nic[-2:]}{str(age)[:2]}{str(slave_no)[:2]}{timestamp}{random_chars}"
+    return code[:code_length]
 
 def generate_code_button_clicked():
     name = name_input.text()
@@ -17,12 +17,12 @@ def generate_code_button_clicked():
     age = age_input.text()
     slave_no = slave_input.text()
 
-    alphanumeric_code = generate_unique_code(name, nic, age, slave_no)
+    alphanumeric_code = generate_unique_code(name, nic, age, slave_no, code_length=10)
     result_label.setText(f"Unique Alphanumeric Code: {alphanumeric_code}")
 
 app = QApplication(sys.argv)
 window = QWidget()
-window.setWindowTitle('Unique Alphanumeric Code Generator')
+window.setWindowTitle('Fixed-Length Unique Alphanumeric Code Generator')
 
 name_label = QLabel('Name:')
 name_input = QLineEdit()
