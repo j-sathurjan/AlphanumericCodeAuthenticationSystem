@@ -54,7 +54,7 @@ def reset_form():
 def save_to_arduino():
     global current_code
     if current_code:
-        # Send the code to the Arduino
+        # Send the code to the Arduino over the serial connection
         arduino.write(current_code.encode())
         # Clear the current code variable
         current_code = ""
