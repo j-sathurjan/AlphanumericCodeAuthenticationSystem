@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButto
 
 # Define the Arduino Mega's serial port (change this to match your Arduino's port)
 # arduino_port = '/dev/ttyUSB0'  # Linux
-arduino_port = 'COM1'  # Windows, replace 'x' with the appropriate COM port number
+arduino_port = 'COM5'  # Windows, replace 'x' with the appropriate COM port number
 
 # Create a serial connection to the Arduino
 arduino = serial.Serial(arduino_port, baudrate=9600, timeout=1)
