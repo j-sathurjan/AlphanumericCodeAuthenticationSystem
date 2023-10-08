@@ -1,113 +1,163 @@
 import sys
-import time
-import serial
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout
+import serial.tools.list_ports
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QComboBox, QGridLayout
 
-# Define the Arduino Mega's serial port (change this to match your Arduino's port)
-# arduino_port = '/dev/ttyUSB0'  # Linux
-arduino_port = 'COM5'  # Windows, replace 'x' with the appropriate COM port number
+# Global variable to hold the Arduino connection
+arduino = None
 
-# Create a serial connection to the Arduino
-arduino = serial.Serial(arduino_port, baudrate=9600, timeout=1)
+def generate_alphanumeric_code(name, nic, gate):
+    # Extract the required portions of the input data
+    gate_code = str(gate)
+    nic_last_10_digits = nic[-10:]
+    name_first_5_chars = name[:5]
 
-def generate_unique_code(name, nic, age, slave_no, code_length=20):
-    # Create a unique alphanumeric code with a fixed length (20 characters)
-    timestamp = int(time.time())
-    code = f"{name[:2]}{nic[-2:]}{str(age)[:2]}{str(slave_no)[:2]}{timestamp}"
-    
-    # Ensure the code is exactly 20 characters by padding with zeros if needed
-    if len(code) < code_length:
-        code += '0' * (code_length - len(code))
-    
-    return code[:code_length]
+    # Concatenate the portions to create a 16-character code
+    alphanumeric_code = gate_code + nic_last_10_digits + name_first_5_chars
 
-def generate_code_button_clicked():
+    # Ensure the code is exactly 16 characters by padding with zeros if needed
+    if len(alphanumeric_code) < 16:
+        alphanumeric_code += '0' * (16 - len(alphanumeric_code))
+
+    return alphanumeric_code
+
+def scan_ports():
+    # Get a list of available COM ports
+    available_ports = [port.device for port in serial.tools.list_ports.comports()]
+    port_combo.clear()
+    port_combo.addItems(available_ports)
+
+def connect_to_arduino():
+    global arduino  # Use the global arduino variable
+
+    # Get the selected COM port
+    selected_port = port_combo.currentText()
+
+    try:
+        # Create a serial connection to the selected Arduino
+        arduino = serial.Serial(selected_port, baudrate=9600, timeout=1)
+        result_label.setText(f"Connected to Arduino on {selected_port}")
+    except serial.SerialException:
+        result_label.setText(f"Failed to connect to Arduino on {selected_port}")
+
+def send_code_to_arduino():
+    if arduino is None:
+        result_label.setText("Arduino not connected. Please connect first.")
+        return
+
+    # Get the input values from the user
     name = name_input.text()
     nic = nic_input.text()
-    age = age_input.text()
-    slave_no = slave_input.text()
+    gate = gate_combo.currentText()
 
-    alphanumeric_code = generate_unique_code(name, nic, age, slave_no, code_length=20)
-    result_label.setText(f"Unique Alphanumeric Code: {alphanumeric_code}")
+    # Generate the alphanumeric code
+    alphanumeric_code = generate_alphanumeric_code(name, nic, gate)
+
+    # Send the code to the Arduino
+    arduino.write(alphanumeric_code.encode())
     
-    # Disable the "Generate" button after generating the code
-    generate_button.setEnabled(False)
-    # Enable the "Add New Information" and "Save" buttons
-    add_info_button.setEnabled(True)
-    save_button.setEnabled(True)
-    
-    # Store the generated code in a global variable for later use
-    global current_code
-    current_code = alphanumeric_code
+    result_label.setText(f"Your gate entering code: {alphanumeric_code}")
 
-def reset_form():
-    # Clear input fields and labels, and enable the "Generate" button
-    name_input.clear()
-    nic_input.clear()
-    age_input.clear()
-    slave_input.clear()
-    result_label.clear()
-    generate_button.setEnabled(True)
-    add_info_button.setEnabled(False)
-    save_button.setEnabled(False)
+def retrieve_list_from_arduino():
+    if arduino is None:
+        result_label.setText("Arduino not connected. Please connect first.")
+        return
 
-def save_to_arduino():
-    global current_code
-    if current_code:
-        # Send the code to the Arduino over the serial connection
-        arduino.write(current_code.encode())
-        # Clear the current code variable
-        current_code = ""
-        # Reset the form
-        reset_form()
-    
-app = QApplication(sys.argv)
-window = QWidget()
-window.setWindowTitle('Fixed-Length (20) Unique Alphanumeric Code Generator')
+    # Send the "get_list" command to Arduino
+    arduino.write("allKeysSlave2\n".encode())
 
-name_label = QLabel('Name:')
-name_input = QLineEdit()
+    # Read the response from Arduino (the list of data)
+    response = arduino.readline().decode().strip()
 
-nic_label = QLabel('NIC No:')
-nic_input = QLineEdit()
+    # Print the response to the console
+    print(f'Response from Arduino: {response}')
 
-age_label = QLabel('Age:')
-age_input = QLineEdit()
+    # Create a new UI to display the retrieved list
+    list_window = QWidget()
+    list_window.setWindowTitle('Retrieved List')
+    list_layout = QVBoxLayout()
 
-slave_label = QLabel('Slave No:')
-slave_input = QLineEdit()
+    list_label = QLabel(f'Retrieved List:\n{response}')
+    list_layout.addWidget(list_label)
 
-generate_button = QPushButton('Generate Unique Alphanumeric Code')
-generate_button.clicked.connect(generate_code_button_clicked)
+    list_window.setLayout(list_layout)
+    list_window.show()
 
-result_label = QLabel('Unique Alphanumeric Code:')
+def update_register_button_state():
+    # Check if Name and NIC No fields are empty, then enable/disable the button
+    name = name_input.text()
+    nic = nic_input.text()
+    is_valid = len(name) >= 5 and len(nic) >= 10
+    generate_button.setEnabled(is_valid)
 
-add_info_button = QPushButton('Add New Information')
-add_info_button.setEnabled(False)
-add_info_button.clicked.connect(reset_form)
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = QWidget()
+    window.setWindowTitle('Alphanumeric Code Generator and Arduino Sender')
 
-save_button = QPushButton('Save to Arduino')
-save_button.setEnabled(False)
-save_button.clicked.connect(save_to_arduino)
+    # Create a top-level layout for the port selection
+    port_layout = QHBoxLayout()
 
-input_layout = QVBoxLayout()
-input_layout.addWidget(name_label)
-input_layout.addWidget(name_input)
-input_layout.addWidget(nic_label)
-input_layout.addWidget(nic_input)
-input_layout.addWidget(age_label)
-input_layout.addWidget(age_input)
-input_layout.addWidget(slave_label)
-input_layout.addWidget(slave_input)
-input_layout.addWidget(generate_button)
-input_layout.addWidget(result_label)
-input_layout.addWidget(add_info_button)
-input_layout.addWidget(save_button)
+    port_label = QLabel('Select Arduino COM Port:')
+    port_combo = QComboBox()
+    scan_button = QPushButton('Scan Ports')
+    scan_button.clicked.connect(scan_ports)
+    connect_button = QPushButton('Connect to Arduino')
+    connect_button.clicked.connect(connect_to_arduino)
 
-button_layout = QHBoxLayout()
-button_layout.addLayout(input_layout)
+    port_layout.addWidget(port_label)
+    port_layout.addWidget(port_combo)
+    port_layout.addWidget(scan_button)
+    port_layout.addWidget(connect_button)
 
-window.setLayout(button_layout)
-window.show()
+    # Create a layout for the input fields and buttons
+    input_layout = QVBoxLayout()
 
-sys.exit(app.exec_())
+    name_label = QLabel('Name:')
+    name_input = QLineEdit()
+    name_input.textChanged.connect(update_register_button_state)  # Connect the textChanged signal
+
+    nic_label = QLabel('NIC No:')
+    nic_input = QLineEdit()
+    nic_input.textChanged.connect(update_register_button_state)  # Connect the textChanged signal
+
+    # Create a grid layout for "Gate No" label and dropdown
+    gate_grid_layout = QGridLayout()
+    gate_label = QLabel('Gate No:')
+    gate_combo = QComboBox()
+    gate_combo.addItems(['1', '2'])
+    gate_grid_layout.addWidget(gate_label, 0, 0)  # Row 0, Column 0
+    gate_grid_layout.addWidget(gate_combo, 0, 1)   # Row 0, Column 1
+
+    generate_button = QPushButton('Register User')
+    generate_button.setEnabled(False)  # Initially disable the button
+    generate_button.clicked.connect(send_code_to_arduino)
+
+    # Create a button to retrieve the list
+    retrieve_list_button = QPushButton('Retrieve List')
+    retrieve_list_button.setEnabled(True)  # Initially enable the button
+    retrieve_list_button.clicked.connect(retrieve_list_from_arduino)
+
+    result_label = QLabel('')
+
+    input_layout.addWidget(name_label)
+    input_layout.addWidget(name_input)
+    input_layout.addWidget(nic_label)
+    input_layout.addWidget(nic_input)
+    input_layout.addLayout(gate_grid_layout)  # Add the gate_grid_layout
+    input_layout.addWidget(generate_button)
+    input_layout.addWidget(retrieve_list_button)  # Add the retrieve_list_button
+
+    # Create a layout for the result label
+    result_layout = QVBoxLayout()
+    result_layout.addWidget(result_label)
+
+    # Create a main layout to arrange the top-level and input layouts
+    main_layout = QVBoxLayout()
+    main_layout.addLayout(port_layout)
+    main_layout.addLayout(input_layout)
+    main_layout.addLayout(result_layout)
+
+    window.setLayout(main_layout)
+    window.show()
+
+    sys.exit(app.exec_())
