@@ -1,7 +1,8 @@
 import sys
 import serial
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QComboBox
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QComboBox, QFrame
 from serial.tools import list_ports
+from PyQt5.QtCore import QTimer
 
 # Create a serial connection to the Arduino UNO
 uno = None  # Initialize as None
@@ -17,6 +18,8 @@ def connect_to_arduino():
     # Close the existing connection if it's open
     if uno and uno.isOpen():
         uno.close()
+        connect_button.setText('Connect to Arduino')
+        connect_button.setEnabled(True)
     # Get the selected serial port from the dropdown
     selected_port = port_combobox.currentText()
     try:
@@ -24,8 +27,23 @@ def connect_to_arduino():
         uno = serial.Serial(selected_port, baudrate=115200, timeout=1)
         connect_button.setText('Connected')
         connect_button.setEnabled(False)
+        connect_button.hide()
+        disconnect_button.show()
+        port_combobox.setEnabled(False)
+        scan_button.setEnabled(False)
     except Exception as e:
-        result_label.setText(f'Failed to connect: {str("please select the port")}')
+        result_label.setText(f'Failed to connect: {"Arduino"}')
+
+def disconnect_from_arduino():
+    global uno
+    if uno and uno.isOpen():
+        uno.close()
+        connect_button.setText('Connect to Arduino')
+        connect_button.setEnabled(True)
+        connect_button.show()
+        disconnect_button.hide()
+        port_combobox.setEnabled(True)
+        scan_button.setEnabled(True)
 
 def verify_code():
     if not uno or not uno.isOpen():
@@ -40,17 +58,51 @@ def verify_code():
 
     # Read the response from the Arduino UNO
     response = uno.readline().decode().strip()
+    
     response = uno.readline().decode().strip()
-    print(f'Response from Arduino: {response}')
 
     if response == "Gate is open":
-        result_label.setText("Code Verified: Match")
+        result_label.setText("Code Verified: Match, Gate is open.")
+        verify_button.setEnabled(False)
+        QTimer.singleShot(3000, update_result_label_to_closed)
     else:
-        result_label.setText("Code Verification Failed: No Match")
-
+        result_label.setText("Code Verification Failed: No Match, Gate is closed.")
+        
+def update_result_label_to_closed():
+    result_label.setText("Gate is closed")
+    verify_button.setEnabled(True)
 app = QApplication(sys.argv)
 window = QWidget()
-window.setWindowTitle('Alphanumeric Code Verification')
+window.setWindowTitle('Slave GUI')
+
+port_label = QLabel('Select Arduino COM Port:')
+port_combobox = QComboBox()
+
+scan_button = QPushButton('Scan Ports')
+scan_button.clicked.connect(scan_ports)
+
+connect_button = QPushButton('Connect to Arduino')
+connect_button.clicked.connect(connect_to_arduino)
+
+disconnect_button = QPushButton('Disconnect')
+disconnect_button.clicked.connect(disconnect_from_arduino)
+
+# Layout for Port Selection, Scan Port, Connect Arduino, and Disconnect Arduino in the same line
+button_layout = QHBoxLayout()
+button_layout.addWidget(port_label)
+button_layout.addWidget(port_combobox)
+button_layout.addWidget(scan_button)
+button_layout.addWidget(connect_button)
+button_layout.addWidget(disconnect_button)
+disconnect_button.hide()
+
+# Horizontal Line Separator
+line = QFrame()
+line.setFrameShape(QFrame.HLine)
+line.setFrameShadow(QFrame.Sunken)
+
+# Input Alphanumeric Code Layout
+code_layout = QVBoxLayout()
 
 code_label = QLabel('Enter Alphanumeric Code:')
 code_input = QLineEdit()
@@ -60,31 +112,19 @@ verify_button.clicked.connect(verify_code)
 
 result_label = QLabel('Verification Result:')
 
-port_combobox = QComboBox()
+code_layout.addWidget(line)  # Add the separator line
+code_layout.addWidget(code_label)
+code_layout.addWidget(code_input)
+code_layout.addWidget(verify_button)
+code_layout.addWidget(result_label)
 
-scan_button = QPushButton('Scan Ports')
-scan_button.clicked.connect(scan_ports)
+# Main Layout
+main_layout = QVBoxLayout()
+main_layout.addLayout(button_layout)
+main_layout.addLayout(code_layout)
 
-connect_button = QPushButton('Connect to Arduino')
-connect_button.clicked.connect(connect_to_arduino)
-
-top_layout = QVBoxLayout()
-top_layout.addWidget(code_label)
-top_layout.addWidget(code_input)
-
-port_layout = QHBoxLayout()
-port_layout.addWidget(port_combobox)
-port_layout.addWidget(scan_button)
-
-top_layout.addLayout(port_layout)
-top_layout.addWidget(connect_button)
-
-layout = QVBoxLayout()
-layout.addLayout(top_layout)
-layout.addWidget(verify_button)
-layout.addWidget(result_label)
-
-window.setLayout(layout)
+window.setLayout(main_layout)
+window.setFixedSize(450, 200)
 window.show()
 
 sys.exit(app.exec_())
