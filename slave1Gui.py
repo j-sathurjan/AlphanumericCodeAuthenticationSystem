@@ -64,13 +64,20 @@ def verify_code():
     if response == "Gate is open":
         result_label.setText("Code Verified: Match, Gate is open.")
         verify_button.setEnabled(False)
-        QTimer.singleShot(3000, update_result_label_to_closed)
+        QTimer.singleShot(4000, update_result_label_to_closed)
     else:
         result_label.setText("Code Verification Failed: No Match, Gate is closed.")
         
 def update_result_label_to_closed():
     result_label.setText("Gate is closed")
     verify_button.setEnabled(True)
+
+def update_verify_button_state():
+    #check if the input is less than 16 character and more than 16 character enable/disable button
+    code = code_input.text()
+    is_valid = len(code) == 16
+    verify_button.setEnabled(is_valid)
+    
 app = QApplication(sys.argv)
 window = QWidget()
 window.setWindowTitle('Slave GUI')
@@ -106,6 +113,7 @@ code_layout = QVBoxLayout()
 
 code_label = QLabel('Enter Alphanumeric Code:')
 code_input = QLineEdit()
+code_input.textChanged.connect(update_verify_button_state)
 
 verify_button = QPushButton('Verify Code')
 verify_button.clicked.connect(verify_code)

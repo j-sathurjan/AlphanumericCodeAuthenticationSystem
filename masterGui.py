@@ -6,20 +6,20 @@ from PyQt5.QtGui import QClipboard
 # Global variable to hold the Arduino connection
 arduino = None
 
-def generate_alphanumeric_code(name, nic, gate):
-    # Extract the required portions of the input data
-    gate_code = str(gate)
-    nic_last_10_digits = nic[-10:]
-    name_first_5_chars = name[:5]
+# def generate_alphanumeric_code(name, nic, gate):
+#     # Extract the required portions of the input data
+#     gate_code = str(gate)
+#     nic_last_10_digits = nic[-10:]
+#     name_first_5_chars = name[:5]
 
-    # Concatenate the portions to create a 16-character code
-    alphanumeric_code = gate_code + nic_last_10_digits + name_first_5_chars
+#     # Concatenate the portions to create a 16-character code
+#     alphanumeric_code = gate_code + nic_last_10_digits + name_first_5_chars
 
-    # Ensure the code is exactly 16 characters by padding with zeros if needed
-    if len(alphanumeric_code) < 16:
-        alphanumeric_code += '0' * (16 - len(alphanumeric_code))
+#     # Ensure the code is exactly 16 characters by padding with zeros if needed
+#     if len(alphanumeric_code) < 16:
+#         alphanumeric_code += '0' * (16 - len(alphanumeric_code))
 
-    return alphanumeric_code
+#     return alphanumeric_code
 
 def copy_to_clipboard(text):
     clipboard = QApplication.clipboard()
@@ -41,7 +41,7 @@ def connect_to_arduino():
         # Create a serial connection to the selected Arduino
         arduino = serial.Serial(selected_port, baudrate=9600, timeout=1)
         result_label.setText(f"Connected to Arduino on {selected_port}")
-        connect_button.setEnabled(False)
+        # connect_button.setEnabled(False)
         connect_button.hide()
         disconnect_button.setEnabled(True)
         disconnect_button.show()
@@ -59,7 +59,7 @@ def disconnect_from_arduino():
         result_label.setText("Disconnected from Arduino")
         connect_button.setEnabled(True)
         connect_button.setText("Connect to Arduino")
-        disconnect_button.setEnabled(False)
+        # disconnect_button.setEnabled(False)
         disconnect_button.hide()
         connect_button.show()
         port_combo.setEnabled(True)
@@ -76,19 +76,30 @@ def send_code_to_arduino():
     gate = gate_combo.currentText()
 
     # Generate the alphanumeric code
-    alphanumeric_code = generate_alphanumeric_code(name, nic, gate)
+    # alphanumeric_code = generate_alphanumeric_code(name, nic, gate)
+    personalDetails = nic +","+name +"," + gate 
     
     #add alphanumeric code + inputSlave + gate + :
-    returnCode = "inputSlave" + gate + ":" + alphanumeric_code
+    sendCode = "inputSlave" + gate + ":" + personalDetails
     
-    copy_to_clipboard(alphanumeric_code)
-
-    # Send the code to the Arduino
-    arduino.write(returnCode.encode())
+    try:
+        # Send the "get_list" command to Arduino
+        # arduino.write("allKeysSlave\n".encode())
+        # Send the code to the Arduino
+        arduino.write(sendCode.encode())
+        # Read the response from Arduino (the list of data)
+        response = arduino.readline().decode().strip()
+        response = arduino.readline().decode().strip()
+        copy_to_clipboard(response)
+                
+        # Print the two lists
+        print(response)
+        result_label.setText(f"Your access code is: {response}")
+        name_input.clear()
+        nic_input.clear()
+    except serial.SerialException:
+        result_label.setText(f"Attempting to use a port that is not open")
     
-    result_label.setText(f"Your gate entering code: {alphanumeric_code}")
-    name_input.clear()
-    nic_input.clear()
 def retrieve_list_from_arduino():
     if arduino is None:
         result_label.setText("Arduino not connected. Please connect first.")
@@ -141,7 +152,8 @@ def update_register_button_state():
     # Check if Name and NIC No fields are empty, then enable/disable the button
     name = name_input.text()
     nic = nic_input.text()
-    is_valid = len(name) >= 5 and len(nic) >= 10
+    gate = gate_combo.currentText()
+    is_valid = len(name) >= 5 and len(nic) >= 10 and gate != ''
     generate_button.setEnabled(is_valid)
 
 if __name__ == '__main__':
